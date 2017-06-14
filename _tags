@@ -1,5 +1,6 @@
 true: predicate(custom_ppx)
 <src/*>: linkall
+<src/*>: warn(A-4-9-27-33-39@40-42-44-45)
 <as_ppx/ppx.{byte,native}>: predicate(ppx_driver)
 # OASIS_START
 # DO NOT EDIT (digest: 193adee021ff34d214e72ebf114c83c5)

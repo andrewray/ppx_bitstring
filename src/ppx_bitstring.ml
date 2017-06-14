@@ -1117,39 +1117,39 @@ let transform_single_let ~loc ast expr =
   match ast.pvb_pat.ppat_desc, ast.pvb_expr.pexp_desc with
   | Parsetree.Ppat_var (s), Pexp_constant (Pconst_string (value, _)) ->
     let pat = pvar ~loc s.txt in
-    let constructor_expr = gen_constructor_expr loc value in
+    let constructor_expr = gen_constructor_expr ~loc value in
     [%expr let [%p pat] = [%e constructor_expr] in [%e expr]]
   | _ -> location_exn ~loc "Invalid pattern type"
 ;;
 
 (* Mapper *)
 
-open Ppx_core.Std
+let mapper ~loc:_ ~path:_ expr =
+  let loc = expr.pexp_loc in
+  let expansion =
+    match expr.pexp_desc with
+    | Parsetree.Pexp_constant (Pconst_string (value, (_ : string option))) ->
+      gen_constructor_expr ~loc value
+    | Parsetree.Pexp_let (Nonrecursive, bindings, expr) ->
+      List.fold_right bindings ~init:expr ~f:(fun binding expr ->
+          transform_single_let ~loc binding expr)
+    | Parsetree.Pexp_match (ident, cases) ->
+      gen_cases ~loc ident cases
+    | Parsetree.Pexp_function (cases) ->
+      gen_function ~loc cases
+    | _ ->
+      location_exn ~loc
+        "'bitstring' can only be used with 'let', 'match', and as '[%bitstring]'"
+  in
+  { expansion with pexp_attributes = expr.pexp_attributes }
+;;
 
 let extension =
-  Extension.V2.declare
+  Ppx_core.Extension.V2.declare
     "bitstring"
-    Extension.Context.expression
-    Ast_pattern.(single_expr_payload __)
-    (fun ~loc:_ ~path:_ expr ->
-      let loc = expr.pexp_loc in
-      let expansion =
-        match expr.pexp_desc with
-        | Pexp_constant (Pconst_string (value, (_ : string option))) ->
-           gen_constructor_expr loc value
-        | Pexp_let (Nonrecursive, bindings, expr) ->
-           List.fold_right bindings ~init:expr ~f:(fun binding expr ->
-               transform_single_let ~loc binding expr)
-        | Pexp_match (ident, cases) ->
-           gen_cases ~loc ident cases
-        | Pexp_function (cases) ->
-           gen_function ~loc cases
-        | _ ->
-           location_exn ~loc
-             "'bitstring' can only be used with 'let', 'match', and as '[%bitstring]'"
-      in
-      { expansion with pexp_attributes = expr.pexp_attributes }
-    )
+    Ppx_core.Extension.Context.expression
+    Ppx_core.Ast_pattern.(single_expr_payload __)
+    mapper
 ;;
 
 let () =
